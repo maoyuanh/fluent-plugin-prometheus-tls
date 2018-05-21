@@ -58,6 +58,8 @@ More configuration parameters:
 - `bind`: binding interface (default: '0.0.0.0')
 - `port`: listen port (defaut: 24231)
 - `metrics_path`: metrics HTTP endpoint (default: /metrics)
+- `cert_dir`: certificate directory when using tls (defalut:'none')
+- `pkey_dir`: private key directory when using tls (defalut:'none')
 
 When using multiple workers, each worker binds to port + `fluent_worker_id`.
 
