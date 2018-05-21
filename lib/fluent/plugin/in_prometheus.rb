@@ -1,6 +1,8 @@
 require 'fluent/plugin/input'
 require 'fluent/plugin/prometheus'
 require 'webrick'
+require 'webrick/https'
+require 'openssl'
 
 module Fluent::Plugin
   class PrometheusInput < Fluent::Plugin::Input
@@ -11,6 +13,8 @@ module Fluent::Plugin
     config_param :bind, :string, default: '0.0.0.0'
     config_param :port, :integer, default: 24231
     config_param :metrics_path, :string, default: '/metrics'
+    config_param :cert_dir, :string, default: 'none'
+    config_param :pkey_dir, :string, default: 'none'
 
     attr_reader :registry
 
@@ -32,13 +36,28 @@ module Fluent::Plugin
       super
 
       log.debug "listening prometheus http server on http://#{@bind}:#{@port}/#{@metrics_path} for worker#{fluentd_worker_id}"
-      @server = WEBrick::HTTPServer.new(
-        BindAddress: @bind,
-        Port: @port,
-        MaxClients: 5,
-        Logger: WEBrick::Log.new(STDERR, WEBrick::Log::FATAL),
-        AccessLog: [],
-      )
+      if (@cert_dir !='none') && (@pkey_dir !='none')
+        @cert = OpenSSL::X509::Certificate.new File.read @cert_dir
+        @pkey = OpenSSL::PKey::RSA.new File.read @pkey_dir
+        @server = WEBrick::HTTPServer.new(
+          BindAddress: @bind,
+          Port: @port,
+          MaxClients: 5,
+          Logger: WEBrick::Log.new(STDERR, WEBrick::Log::FATAL),
+          AccessLog: [],
+          SSLEnable: true,
+          SSLCertificate: @cert,
+          SSLPrivateKey: @pkey,
+        )
+      else
+        @server = WEBrick::HTTPServer.new(
+          BindAddress: @bind,
+          Port: @port,
+          MaxClients: 5,
+          Logger: WEBrick::Log.new(STDERR, WEBrick::Log::FATAL),
+          AccessLog: [],
+        )
+      end
       @server.mount(@metrics_path, MonitorServlet, self)
       thread_create(:in_prometheus) do
         @server.start
